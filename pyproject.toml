@@ -11,11 +11,11 @@ python = ">=3.9,<3.13"
 scipy = "^1.11.3"
 numpy = "^1.26.0"
 
-
 [tool.poetry.group.dev.dependencies]
 notebook = "^7.0.4"
 matplotlib = "^3.8.0"
 pytest = "^7.4.2"
+pillow = "^10.0.1"
 
 [build-system]
 requires = ["poetry-core"]
