@@ -5,7 +5,6 @@ description = "Robust PCA using Accelerated Alternating Projection"
 authors = ["Loic Coyle <loic.coyle@hotmail.fr>"]
 readme = "README.md"
 license = "MIT"
-keywords = ["robust pca", "rpca", "sklearn", "dimensionality reduction"]
 repository = "https://github.com/loiccoyle/RPCA"
 classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",

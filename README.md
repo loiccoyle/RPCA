@@ -14,3 +14,5 @@
 </div>
 
 This is a python port of the [AccAltProj algorithm for robust PCA](https://github.com/caesarcai/AccAltProj_for_RPCA), described in this [paper](https://arxiv.org/abs/1711.05519).
+
+This implementation follows `sklearn`'s `fit` & `transform` API.
