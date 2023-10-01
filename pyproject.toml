@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "rpca"
+version = "0.1.0"
+description = ""
+authors = ["Loic Coyle <loic.coyle@hotmail.fr>"]
+readme = "README.md"
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.13"
+scipy = "^1.11.3"
+numpy = "^1.26.0"
+
+
+[tool.poetry.group.dev.dependencies]
+notebook = "^7.0.4"
+matplotlib = "^3.8.0"
+pytest = "^7.4.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
