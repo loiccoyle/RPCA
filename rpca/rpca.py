@@ -10,7 +10,54 @@ from numpy.linalg import norm
 from .util import wthresh
 
 
+class NotFittedError(Exception):
+    pass
+
+
 class RobustPCA:
+    """Robust Principal Component Analylsis using Accelerated Alternating Projections.
+
+    This class implements the Robust Principal Component Analysis (RPCA) algorithm using
+    Accelerated Alternating Projections as described in [1]_.
+
+    This implementation is a python port of the matlab implementation by HanQin Cai, et. al. available at:
+        https://github.com/caesarcai/AccAltProj_for_RPCA
+
+    It follows the scikit-learn API.
+
+    .. [1] HanQin Cai, et. al. Accelerated alternating projections for robust principal component analysis.
+        (https://arxiv.org/abs/1711.05519)
+
+    Args:
+        n_components: The number of low-rank components to extract. If None, it is automatically set.
+        max_iter: The maximum number of iterations to perform.
+        tol: The relative tolerance for convergence.
+        beta: The regularization parameter for the sparse component. If None, it is automatically set.
+        beta_init: The initial value for the regularization parameter for the sparse component. If None, it is
+            automatically set.
+        gamma: The step size for the ADMM algorithm.
+        mu: The ADMM penalty parameters for the low-rank and sparse components.
+        trim: Whether to trim small values in the sparse component to zero.
+        verbose: Whether to print progress messages during fitting.
+        copy: Whether to make a copy of the input data matrix before fitting.
+
+    Examples:
+        Fit a RobustPCA estimator to the input data matrix X, and reduce the dimension of X.
+
+        >>> import numpy as np
+        >>> from rpca import RobustPCA
+        >>> X = np.random.rand(100, 50)
+        >>> rpca = RobustPCA(n_components=10)
+        >>> rpca.fit(X)
+        >>> X_pca = rpca.transform(X)
+        >>> X_pca.shape
+        (100, 10)
+
+    Raises:
+        ValueError: If the number of low-rank components is not positive, or if the maximum number of iterations
+                    is not positive.
+    """
+
     def __init__(
         self,
         n_components: Optional[int] = None,
@@ -24,6 +71,10 @@ class RobustPCA:
         verbose: bool = True,
         copy: bool = True,
     ):
+        if n_components is not None and n_components <= 0:
+            raise ValueError(
+                f"Expected positive number of components, got {n_components} instead."
+            )
         self.n_components = n_components
         self.max_iter = max_iter
         self.tol = tol
@@ -36,13 +87,27 @@ class RobustPCA:
         self.copy = copy
 
     def fit(self, X: npt.ArrayLike, y=None) -> "RobustPCA":
+        """Fit the estimator to the input data.
+
+        Args:
+            X: An array-like matrix of shape (n_samples, n_features) representing the input data to fit.
+            y: Ignored. This parameter exists only for compatibility with the scikit-learn API.
+
+        Returns:
+            The fitted estimator object.
+
+        Raises:
+            ValueError: If the input data matrix is not a 2D array.
+        """
         self._fit(np.asarray(X))
         return self
 
     def _initialisation(
         self, X: npt.ArrayLike
     ) -> Tuple[npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray]:
-        X = np.asarray(X)
+        # svds requires float dtype
+        X = np.asarray(X, dtype=float)
+
         n_samples, n_features = X.shape
         if self.beta is None:
             beta = 1 / (2 * np.power(n_samples * n_features, 1 / 4))
@@ -82,17 +147,23 @@ class RobustPCA:
     def _fit(
         self, X: npt.NDArray
     ) -> Tuple[npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray]:
+        if np.ndim(X) != 2:
+            raise ValueError(
+                f"Expected 2D array, got {np.ndim(X)}D array instead:\n{X}"
+            )
+
         if self.copy:
             X = np.copy(X)
 
         errors = []
-        norm_of_X = norm(X, "fro")
+        norm_of_X: float
+        norm_of_X = norm(X, "fro")  # type: ignore
 
         self.mean_ = np.mean(X, axis=0)
-        X -= self.mean_
+        X = np.subtract(X, self.mean_)
 
         L, S, U, Sigma, V = self._initialisation(X)
-        errors.append(norm(X - L - S, "fro") / norm_of_X)
+        errors.append(self._compute_error(X, L, S, norm_of_X))
 
         i = 1
         for i in range(1, self.max_iter + 1):
@@ -132,11 +203,11 @@ class RobustPCA:
             )
             S = wthresh(X - L, zeta)
 
-            error = norm(X - L - S, "fro") / norm_of_X
+            error = self._compute_error(X, L, S, norm_of_X)
             errors.append(error)
 
             if self.verbose:
-                print(f"[{i}] Tolerance: {self.tol}\tCurrent error: {errors[i]}")
+                print(f"[{i}] Tolerance: {self.tol}\tCurrent error: {error}")
             if error < self.tol:
                 print("Tolerance condition met.")
                 break
@@ -152,7 +223,7 @@ class RobustPCA:
         self.sparse_ = S
         # transpose V for consistency with sklearn's pca
         self.components_ = V.T
-        # flatten the Sigma for  consistency with sklearn's pca
+        # flatten the Sigma for consistency with sklearn's pca
         self.singular_values_ = np.diag(Sigma)[: self.n_components_]
 
         self.end_iter_ = i
@@ -160,16 +231,59 @@ class RobustPCA:
         return L, S, U, Sigma, V
 
     def transform(self, X: npt.ArrayLike) -> npt.NDArray:
+        """Apply dimensionality reduction to X.
+
+        Args:
+            X: An array-like matrix of shape (n_samples, n_features) to transform.
+
+        Returns:
+            An ndarray of shape (n_samples, n_features) representing the transformed data matrix, with the low-rank and sparse components removed.
+
+        Raises:
+            NotFittedError: If the estimator has not been fitted to any data.
+        """
+        if not hasattr(self, "components_"):
+            raise NotFittedError(
+                "This RobustPCA instance is not fitted yet. Call 'fit' with appropriate arguments before using this method."
+            )
         if self.copy:
             X = np.copy(X)
         if self.mean_ is not None:
-            X -= self.mean_
+            X = np.subtract(X, self.mean_)
         return X @ self.components_.T
 
     def inverse_transform(self, X: npt.ArrayLike) -> npt.NDArray:
+        """Transform data back to its original space.
+
+        Args:
+            X: An array-like matrix of shape (n_samples, n_features) representing the transformed data matrix to inverse transform.
+
+        Returns:
+            An ndarray of shape (n_samples, n_features) representing the inverse transformed data matrix, with the low-rank and sparse components added back.
+
+        Raises:
+            NotFittedError: If the estimator has not been fitted to any data.
+        """
+        if not hasattr(self, "components_"):
+            raise NotFittedError(
+                "This RobustPCA instance is not fitted yet. Call 'fit' with appropriate arguments before using this method."
+            )
         return (X @ self.components_) + self.mean_
 
     def fit_transform(self, X: npt.ArrayLike, y=None) -> npt.NDArray:
+        """Fit the model with X and apply the dimensionality reduction on X.
+
+        Args:
+            X: An array-like matrix of shape (n_samples, n_features) representing the input data to fit and transform.
+            y: Ignored. This parameter exists only for compatibility with the scikit-learn API.
+
+        Returns:
+            An ndarray of shape (n_samples, n_features) representing the transformed data matrix,
+            with the low-rank and sparse components removed.
+
+        Raises:
+            ValueError: If the input data matrix is not a 2D array.
+        """
         _, _, U, Sigma, _ = self._fit(np.asarray(X))
         U = U[:, : self.n_components_]
         U *= np.diag(Sigma)[: self.n_components_]
@@ -199,3 +313,11 @@ class RobustPCA:
         Q2, R2 = self.__trim(V, mu_V)
         U_tmp, _, V_tmp = svd(R1 @ Sig @ R2.T, full_matrices=False)
         return Q1 @ U_tmp, Q2 @ V_tmp.T
+
+    @staticmethod
+    def _compute_error(
+        X: npt.NDArray, L: npt.NDArray, S: npt.NDArray, norm_of_X: Optional[float]
+    ) -> float:
+        return norm(X - (L + S), "fro") / (
+            norm(X, "fro") if norm_of_X is None else norm_of_X
+        )  # type:ignore
