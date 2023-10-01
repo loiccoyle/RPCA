@@ -126,3 +126,4 @@ dmypy.json
 .pyre/
 
 examples/data
+notebooks/
