@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rpca"
-version = "0.1.5"
+version = "0.1.6"
 description = "Robust PCA using Accelerated Alternating Projection"
 authors = ["Loic Coyle <loic.coyle@hotmail.fr>"]
 readme = "README.md"
