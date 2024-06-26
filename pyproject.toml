@@ -7,17 +7,17 @@ readme = "README.md"
 license = "MIT"
 repository = "https://github.com/loiccoyle/RPCA"
 classifiers = [
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "Programming Language :: Python :: 3 :: Only",
-    "Operating System :: MacOS",
-    "Operating System :: Microsoft :: Windows",
-    "Operating System :: POSIX :: Linux",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Programming Language :: Python :: 3 :: Only",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
 ]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
 scipy = "^1.11.3"
-numpy = "^1.26.0"
+numpy = "^2.0.0"
 
 [tool.poetry.group.dev.dependencies]
 notebook = "^7.0.4"
